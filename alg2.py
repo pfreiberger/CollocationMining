@@ -26,7 +26,7 @@ def sortAmedities():
     print('Sorting took', time()-start, 'to execute')
     return amenities, amenityLocations
 
-def naiveMaterialization(data, lngEps, amenities, amenityLocations):
+def naiveMaterialization(lngEps, amenities, amenityLocations):
     neighborsByAmenity = {}
     start = time()
     for amenityTypeId, (amenityType, locations) in enumerate(amenityLocations):
@@ -36,7 +36,7 @@ def naiveMaterialization(data, lngEps, amenities, amenityLocations):
             locationNeighbors = []
             for (nextAmenityType, nextLocations) in amenityLocations[amenityTypeId+1:]:
                 for neighborLocation in nextLocations:
-                    if neighborLocation[0] -  location[0] < -lngEps:
+                    if neighborLocation[0] - location[0] < -lngEps:
                         continue
                     if location[0] - neighborLocation[0] > lngEps:
                         break
@@ -91,8 +91,7 @@ def minePatterns(hashTable, latCells, lngCells, latStep, lngStep, lngEps):
                 neighborsByAmenity[amenityType].extend(amenityNeighbors)
     return time() - start, neighborsByAmenity
 
-# some other stuff, probably star to clique transform
-def starToClique(amenityLocations):
+def mineCliques(amenityLocations):
     start = time()
     amenities = [amenity for amenity, loc in amenityLocations]
     patterns = {1:[[amenity] for amenity in amenities]}
@@ -149,9 +148,9 @@ latStep = (maxLat - minLat)/latCells
 lngStep = (maxLng - minLng)/lngCells
 
 amenities, amenityLocations = sortAmedities()
-#naiveMaterialization(data, lngEps, amenities, amenityLocations)
+#naiveMaterialization(lngEps, amenities, amenityLocations)
 
 materTime, neighborsByAmenity = minePatterns(hashTable, latCells, lngCells, latStep, lngStep, lngEps)
-starToClique(amenityLocations)
+mineCliques(amenityLocations)
 
 print('Total algorithm time took', time()-start, 'to execute')

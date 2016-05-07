@@ -77,6 +77,14 @@ def checkStar(instance, colocation):
             return False
     return True
 
+def checkClique(locations):
+    for location in locations:
+        for location2 in locations:
+            assert(vincenty(location, location2).meters <= 50)
+            if vincenty(location, location2).meters > 50:
+                print("No.")
+    sys.exit(1)
+
 def generateCandidates(colocations, amenities, k0):
     candidates = []
     for colocation in colocations:

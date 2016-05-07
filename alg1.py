@@ -35,9 +35,15 @@ def hashData(hashTable, data, latCells, lngCells, latStep, lngStep, latEps, lngE
     print('Super fast hasing took', time()-start, 'to execute')
     return hashTable, time()-start
 
-def processSet(cur_atype, cur_locations, objectDict, patList, localPatterns, thresh):
+def processSet(cur_atype, cur_locations, objectDict, patList, localPatterns, locations, types):
     newPatList = list(patList)
     newPatList.append(cur_atype)
+    newPatList.sort()
+    if (len(newPatList) > 14):
+        print(locations)
+        print(types)
+        print(newPatList)
+        hlp.checkClique(locations)
     subPattern = '.'.join(newPatList)
     localPatterns[subPattern] = 1
     for location in cur_locations:
@@ -47,8 +53,7 @@ def processSet(cur_atype, cur_locations, objectDict, patList, localPatterns, thr
         for atype,atype_list in objectDict.items():
             new_list = []
             for obj_loc in atype_list:
-                if math.sqrt((location[0] - obj_loc[0])**2 +
-                     (location[1] - obj_loc[1])**2)<thresh:
+                if vincenty(location, obj_loc).meters <= 50:
                     new_list.append(obj_loc)
             if len(new_list) > 0:
                 if len(next_locations) == 0:
@@ -56,11 +61,15 @@ def processSet(cur_atype, cur_locations, objectDict, patList, localPatterns, thr
                     next_locations = new_list
                 else:
                     newDict[atype] = new_list
+        new_locations = list(locations)
+        new_locations.append(location)
+        new_types = list(types)
+        new_types.append(cur_atype)
         if len(next_locations) > 0:
-            processSet(next_atype, next_locations, newDict, newPatList, localPatterns, thresh)
+            processSet(next_atype, next_locations, newDict, newPatList, localPatterns, new_locations, new_types)
 
 def mineCliquePatterns(hashTable, latCells, lngCells, latStep, lngStep, lngEps):
-    patterns = defaultdict(lambda: defaultdict(lambda: 0))
+    patterns = defaultdict(lambda: 0)
     thresh = math.sqrt(latEps**2+lngEps**2)
     start = time()
     tmp = 0
@@ -93,7 +102,7 @@ def mineCliquePatterns(hashTable, latCells, lngCells, latStep, lngStep, lngEps):
                     next_atype = ''
 
                     for neighborAmenityType in filter(lambda x: currentCell[amenitiesIndices[x]]
-                                                      and x != amenityType,amenitiesList):
+                                                      and amenitiesIndices[x] > amenitiesIndices[amenityType], amenitiesList):
                         cur_locations = []
                         for neighborlocationIndex in range(len(currentCell[amenitiesIndices[neighborAmenityType]])):
                             neighborlocation = currentCell[amenitiesIndices[neighborAmenityType]][neighborlocationIndex]
@@ -111,10 +120,10 @@ def mineCliquePatterns(hashTable, latCells, lngCells, latStep, lngStep, lngEps):
                                 newDict[neighborAmenityType] = cur_locations
 
                     if len(next_locations) > 0:
-                        processSet(next_atype, next_locations, newDict, [], localPatterns, thresh)
+                        processSet(next_atype, next_locations, newDict, [amenityType], localPatterns,[location],[amenityType])
                     # now for current object move every unique pattern to global storage
                     for pat, val in localPatterns.items():
-                        patterns[amenityType][pat] += 1
+                        patterns[pat] += 1
     print('Mining algorithm took', time()-start, 'to execute')
     return time()-start, patterns
 
@@ -177,4 +186,12 @@ lngStep = (maxLng - minLng)/lngCells
 hashTable, hasingTime = hashData(hashTable, data, latCells, lngCells, latStep, lngStep, lngEps, latEps)
 #miningTime, patterns = mineStarPatterns(hashTable, latCells, lngCells, latStep, lngStep, lngEps)
 miningTime, patterns = mineCliquePatterns(hashTable, latCells, lngCells, latStep, lngStep, lngEps)
+
+countPatterns = defaultdict(lambda: 0)
+for key, val in patterns.items():
+    countPatterns[key.count(".")] += 1
+
+for key, val in countPatterns.items():
+    print(key,":",val)
+
 print('Total algorithm time took', time()-start, 'to execute')
