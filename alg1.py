@@ -4,9 +4,10 @@ from collections import defaultdict
 import math
 from geopy.distance import VincentyDistance as vincenty
 import itertools
-
 import helpers as hlp
+import pandas as pd
 
+patternInstances = []
 
 def hashData(hashTable, data, latCells, lngCells, latStep, lngStep, latEps, lngEps):
     start = time()
@@ -30,46 +31,54 @@ def hashData(hashTable, data, latCells, lngCells, latStep, lngStep, latEps, lngE
                     else:
                         hashTable[latId, lngId, amenitiesIndices[location.type_lowest]] = [(lat, lng)]
                 except Exception as e:
-                    pass
+                    print(e) #pass
 
     print('Super fast hasing took', time()-start, 'to execute')
     return hashTable, time()-start
 
-def processSet(cur_atype, cur_locations, objectDict, patList, localPatterns, locations, types):
+def processSet(cur_atype, cur_list, objectDict, patList, localPatterns, thresh, objectset, depth):
+    if len(cur_list) == 0:
+        return
     newPatList = list(patList)
     newPatList.append(cur_atype)
     newPatList.sort()
-    if (len(newPatList) > 14):
-        print(locations)
-        print(types)
-        print(newPatList)
-        hlp.checkClique(locations)
     subPattern = '.'.join(newPatList)
+    
     localPatterns[subPattern] = 1
-    for location in cur_locations:
+    for location in cur_list:
+        
+        #print('adding new instance of size', len(objectset)+1)
+        #newid = len(patternInstances)
+        #print("curid",newid)
+        #all_locations = [location]
+        #patternInstances.append({'latitude': location[0], 'longitude': location[1], 'type': cur_atype, 'pattern': subPattern, 'size': len(newPatList), 'instanceid': newid})
+        #add new instance
+        #for objtuple in objectset:
+        #    all_locations.append(objtuple[1])
+        #    patternInstances.append({'latitude': objtuple[1][0], 'longitude': objtuple[1][1], 'type': objtuple[0], 'pattern': subPattern, 'size': len(newPatList), 'instanceid': newid})
+        #checkClique(all_locations)
+        
         newDict = dict()
-        next_locations = []
-        next_atype = ''
         for atype,atype_list in objectDict.items():
             new_list = []
             for obj_loc in atype_list:
                 if vincenty(location, obj_loc).meters <= 50:
                     new_list.append(obj_loc)
-            if len(new_list) > 0:
-                if len(next_locations) == 0:
-                    next_atype = atype
-                    next_locations = new_list
-                else:
-                    newDict[atype] = new_list
-        new_locations = list(locations)
-        new_locations.append(location)
-        new_types = list(types)
-        new_types.append(cur_atype)
-        if len(next_locations) > 0:
-            processSet(next_atype, next_locations, newDict, newPatList, localPatterns, new_locations, new_types)
-
+                    #for old_loc in objectset:
+                     #   assert(vincenty(old_loc[1], obj_loc).meters <= 50)
+            newDict[atype] = new_list
+        while len(newDict) > 0:
+            for next_atype, next_list in newDict.items():
+                #add object to the pattern instance
+                new_objectset = list(objectset)
+                new_objectset.append((cur_atype, location))
+                del newDict[next_atype]
+                processSet(next_atype, next_list, newDict, newPatList, localPatterns, thresh, new_objectset, depth+1)
+                break
+                
 def mineCliquePatterns(hashTable, latCells, lngCells, latStep, lngStep, lngEps):
-    patterns = defaultdict(lambda: 0)
+    global patternInstances
+    patterns = defaultdict(lambda: defaultdict(lambda: 0))
     thresh = math.sqrt(latEps**2+lngEps**2)
     start = time()
     tmp = 0
@@ -78,7 +87,6 @@ def mineCliquePatterns(hashTable, latCells, lngCells, latStep, lngStep, lngEps):
             print("Processing cell", lat+1, "/", latCells, ",", lng+1, "/", lngCells)
             currentCell = hashTable[lat, lng]
             for amenityType in amenitiesList:
-
                 # No locations of this type
                 if not currentCell[amenitiesIndices[amenityType]]:
                     continue
@@ -98,12 +106,10 @@ def mineCliquePatterns(hashTable, latCells, lngCells, latStep, lngStep, lngEps):
 
                     # this is D array from article "multiway spatial join" by mamoulis
                     newDict = dict()
-                    next_locations = []
-                    next_atype = ''
 
                     for neighborAmenityType in filter(lambda x: currentCell[amenitiesIndices[x]]
-                                                      and amenitiesIndices[x] > amenitiesIndices[amenityType], amenitiesList):
-                        cur_locations = []
+                                                      and x != amenityType,amenitiesList):
+                        cur_locations = list([])
                         for neighborlocationIndex in range(len(currentCell[amenitiesIndices[neighborAmenityType]])):
                             neighborlocation = currentCell[amenitiesIndices[neighborAmenityType]][neighborlocationIndex]
                             if neighborlocation[0] - location[0] < -lngEps:
@@ -113,66 +119,26 @@ def mineCliquePatterns(hashTable, latCells, lngCells, latStep, lngStep, lngEps):
                             if vincenty(location, neighborlocation).meters <= 50:
                                 cur_locations.append(neighborlocation)
                         if len(cur_locations) > 0:
-                            if len(next_locations) == 0:
-                                next_locations = cur_locations
-                                next_atype = neighborAmenityType
-                            else:
-                                newDict[neighborAmenityType] = cur_locations
+                            newDict[neighborAmenityType] = cur_locations
 
-                    if len(next_locations) > 0:
-                        processSet(next_atype, next_locations, newDict, [amenityType], localPatterns,[location],[amenityType])
+                    while len(newDict) > 0:
+                        #if amenityType == 'dentist':
+                         #   print('dentist',newDict)
+                        for next_atype, next_list in newDict.items():
+                            del newDict[next_atype]
+                            processSet(next_atype, next_list, newDict, [amenityType], localPatterns, thresh, [(amenityType, location)],0)
+                            break
                     # now for current object move every unique pattern to global storage
                     for pat, val in localPatterns.items():
-                        patterns[pat] += 1
+                        patterns[amenityType][pat] += 1
     print('Mining algorithm took', time()-start, 'to execute')
     return time()-start, patterns
-
-def mineStarPatterns(hashTable, latCells, lngCells, latStep, lngStep, lngEps):
-    patterns = defaultdict(lambda: defaultdict(lambda: 0))
-    start = time()
-    for lat in range(latCells):
-        for lng in range(lngCells):
-            currentCell = hashTable[lat, lng]
-            for amenityType in amenitiesList:
-                #No locations of this type
-                if not currentCell[amenitiesIndices[amenityType]]:
-                    continue
-
-                cellCoords = cityCoords[lat, lng]
-                #Iterate all the objects in this cell and type
-                for location in filter(lambda x:
-                                           x[0] >= cellCoords[0]
-                                       and x[0] < cellCoords[0] + latStep
-                                       and x[1] >= cellCoords[1]
-                                       and x[1] < cellCoords[1] + lngStep,
-                                       currentCell[amenitiesIndices[amenityType]]):
-                    locationPattern = []
-                    for neighborAmenityType in filter(lambda x: currentCell[amenitiesIndices[x]]
-                                                      and x != amenityType,amenitiesList):
-
-                        for neighborLocation in currentCell[amenitiesIndices[neighborAmenityType]]:
-                            if neighborLocation[0] -  location[0] < -lngEps:
-                                continue
-                            if location[0] - neighborLocation[0] > lngEps:
-                                break
-                            if vincenty(location, neighborLocation).meters <= 50:
-                                locationPattern.append(neighborAmenityType)
-
-                    if len(locationPattern):
-                        subPattern = locationPattern[0]
-                        patterns[amenityType][subPattern]+=1
-                        for pattern in locationPattern[1:]:
-                            subPattern = '.'.join([subPattern, pattern])
-                            patterns[amenityType][subPattern]+=1
-
-    print('Mining algorithm took', time()-start, 'to execute')
-    return time()-start, patterns
-
 
 # Algorithm 1 : Start Patterns
-cities, amenitiesIndices, amenitiesList = hlp.loadCities("../amenities_list.json", "../cities/", "Providence.csv")
+cities, amenitiesIndices, amenitiesList = hlp.loadCities("../amenities_list.json", "../cities/", "small.csv")
 start = time()
-data = cities['Providence']
+data = cities['small']
+
 minLat, minLng, maxLat, maxLng = data.location_lat.min(), data.location_lng.min(), data.location_lat.max(), data.location_lng.max()
 lowerLeft = minLat, minLng
 upperRight = maxLat, maxLng
@@ -186,12 +152,53 @@ lngStep = (maxLng - minLng)/lngCells
 hashTable, hasingTime = hashData(hashTable, data, latCells, lngCells, latStep, lngStep, lngEps, latEps)
 #miningTime, patterns = mineStarPatterns(hashTable, latCells, lngCells, latStep, lngStep, lngEps)
 miningTime, patterns = mineCliquePatterns(hashTable, latCells, lngCells, latStep, lngStep, lngEps)
+#print(patterns)
+#print(len(patterns))
 
-countPatterns = defaultdict(lambda: 0)
-for key, val in patterns.items():
-    countPatterns[key.count(".")] += 1
+sortedAmenities = {}
+for amenityType, locations in data.groupby('type_lowest'):
+    sortedAmenities[amenityType] = list(zip(locations.location_lat.tolist(),
+                                            locations.location_lng.tolist(),
+                                           locations.type_lowest.tolist()))
+    sortedAmenities[amenityType].sort(key = lambda x : x[0])
+amenityLocations = [(key, value) for (key, value) in sortedAmenities.items()]
+amenityLocations.sort(key = lambda x: x[0])
 
-for key, val in countPatterns.items():
-    print(key,":",val)
+countAmenities = {}
+for atype, alist in amenityLocations:
+    countAmenities[atype] = len(alist)
+
+    #calculate amount of objects of each type
+
+#for each type get all patterns and for each pattern (via dictionary) that is not banned
+#   -> calculate pr=supp/tot_obj
+#if newly calculated is smaller than existing for existing pattern - replace minimum
+#if it is smaller than threshold - then ban the pattern and do not check it elsewhere
+
+#print all patterns that have not been benned, as well as their pr value.
+
+pr = {}
+thresh = 0.05
+
+for amenityType, amenityPats in patterns.items():
+    for aPat, aPatCount in amenityPats.items():
+        newVal = aPatCount/countAmenities[amenityType]
+        try:
+            curVal = pr[aPat]
+            if curVal != -1:
+                if newVal < thresh:
+                    pr[aPat] = -1
+                else:
+                    if newVal < curVal:
+                        pr[aPat] = newVal
+        except KeyError:
+            if newVal < thresh:
+                pr[aPat] = -1
+            else:
+                pr[aPat] = newVal
+pr_clean = [(apat, apr) for apat, apr in pr.items() if apr > 0]
+
+pd.DataFrame(pr_clean, columns=['pattern','prev']).to_csv('prevalentPatternsProvidence.csv', index=None)
 
 print('Total algorithm time took', time()-start, 'to execute')
+print("Number of patterns: ",len(pr_clean))

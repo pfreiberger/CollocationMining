@@ -8,6 +8,7 @@ import os
 import math
 from geopy.distance import VincentyDistance as vincenty
 import itertools
+import tqdm
 
 def loadCities(amenities_path, citites_path, city = ''):
     groups = {'hindu_temple':'religious_centers',
@@ -83,7 +84,6 @@ def checkClique(locations):
             assert(vincenty(location, location2).meters <= 50)
             if vincenty(location, location2).meters > 50:
                 print("No.")
-    sys.exit(1)
 
 def generateCandidates(colocations, amenities, k0):
     candidates = []
