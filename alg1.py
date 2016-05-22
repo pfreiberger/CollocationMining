@@ -3,6 +3,7 @@ from time import time
 from collections import defaultdict
 import math
 from geopy.distance import VincentyDistance as vincenty
+import geopy as gp
 import itertools
 import helpers as hlp
 import pandas as pd
@@ -10,6 +11,7 @@ import pandas as pd
 patternInstances = []
 
 def hashData(hashTable, data, latCells, lngCells, latStep, lngStep, latEps, lngEps):
+    global relPoint
     start = time()
     for index, location in data.iterrows():
         lat, lng = location.location_lat, location.location_lng
@@ -25,11 +27,12 @@ def hashData(hashTable, data, latCells, lngCells, latStep, lngStep, latEps, lngE
         for latId in set([currentLatId, otherLatId]):
             for lngId in set([currentLngId, otherLngId]):
                 try:
+                    x, y = hlp.getXYpos(relPoint, gp.Point(lat, lng))
                     if hashTable[latId, lngId, amenitiesIndices[location.type_lowest]]:
-                        hashTable[latId, lngId, amenitiesIndices[location.type_lowest]].append((lat, lng))
+                        hashTable[latId, lngId, amenitiesIndices[location.type_lowest]].append((lat, lng, x, y))
                         hashTable[latId, lngId, amenitiesIndices[location.type_lowest]].sort(key = lambda x : x[0])
                     else:
-                        hashTable[latId, lngId, amenitiesIndices[location.type_lowest]] = [(lat, lng)]
+                        hashTable[latId, lngId, amenitiesIndices[location.type_lowest]] = [(lat, lng, x, y)]
                 except Exception as e:
                     print(e) #pass
 
@@ -62,7 +65,8 @@ def processSet(cur_atype, cur_list, objectDict, patList, localPatterns, thresh, 
         for atype,atype_list in objectDict.items():
             new_list = []
             for obj_loc in atype_list:
-                if vincenty(location, obj_loc).meters <= 50:
+                #if vincenty(location, obj_loc).meters <= 50:
+                if hlp.checkDist(location, obj_loc, 50):
                     new_list.append(obj_loc)
                     #for old_loc in objectset:
                      #   assert(vincenty(old_loc[1], obj_loc).meters <= 50)
@@ -116,7 +120,7 @@ def mineCliquePatterns(hashTable, latCells, lngCells, latStep, lngStep, lngEps):
                                 continue
                             if location[0] - neighborlocation[0] > lngEps:
                                 break
-                            if vincenty(location, neighborlocation).meters <= 50:
+                            if hlp.checkDist(location, neighborlocation, 50):
                                 cur_locations.append(neighborlocation)
                         if len(cur_locations) > 0:
                             newDict[neighborAmenityType] = cur_locations
@@ -135,13 +139,14 @@ def mineCliquePatterns(hashTable, latCells, lngCells, latStep, lngStep, lngEps):
     return time()-start, patterns
 
 # Algorithm 1 : Start Patterns
-cities, amenitiesIndices, amenitiesList = hlp.loadCities("../amenities_list.json", "../cities/", "small.csv")
+cities, amenitiesIndices, amenitiesList = hlp.loadCities("../amenities_list.json", "../cities/", "ProvidenceNew.csv")
 start = time()
-data = cities['small']
+data = cities['ProvidenceNew']
 
 minLat, minLng, maxLat, maxLng = data.location_lat.min(), data.location_lng.min(), data.location_lat.max(), data.location_lng.max()
 lowerLeft = minLat, minLng
 upperRight = maxLat, maxLng
+relPoint = gp.Point(minLat, minLng)
 
 cityCoords, hashTable, lngEps, latEps = hlp.initializeContainers(minLat, minLng, maxLat, maxLng, amenitiesList)
 

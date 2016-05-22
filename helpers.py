@@ -8,7 +8,6 @@ import os
 import math
 from geopy.distance import VincentyDistance as vincenty
 import itertools
-import tqdm
 
 def loadCities(amenities_path, citites_path, city = ''):
     groups = {'hindu_temple':'religious_centers',
@@ -98,3 +97,19 @@ def generateCandidates(colocations, amenities, k0):
                 continue
             candidates.append(colocation + [amenity])
     return candidates
+
+def asRadians(degrees):
+    return degrees * math.pi / 180
+
+def getXYpos(relativeNullPoint, p):
+    """ Calculates X and Y distances in meters.
+    """
+    deltaLatitude = p.latitude - relativeNullPoint.latitude
+    deltaLongitude = p.longitude - relativeNullPoint.longitude
+    latitudeCircumference = 40075160 * math.cos(asRadians(relativeNullPoint.latitude))
+    resultX = deltaLongitude * latitudeCircumference / 360
+    resultY = deltaLatitude * 40008000 / 360
+    return resultX, resultY
+
+def checkDist(location1, location2, thres):
+    return math.sqrt(pow(location1[2]-location2[2],2)+pow(location1[3] - location2[3],2)) < thres
