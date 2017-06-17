@@ -11,13 +11,13 @@ import itertools
 
 import helpers as hlp
 
-def sortAmedities():
+def sortAmenities():
     start = time()
     sortedAmenities = {}
-    for amenityType, locations in data.groupby('type_lowest'):
-        sortedAmenities[amenityType] = list(zip(locations.location_lat.tolist(),
-                                                locations.location_lng.tolist(),
-                                               locations.type_lowest.tolist()))
+    for amenityType, locations in data.groupby('type'):
+        sortedAmenities[amenityType] = list(zip(locations.latitude.tolist(),
+                                                locations.longitude.tolist(),
+                                               locations.type.tolist()))
         sortedAmenities[amenityType].sort(key = lambda x : x[0])
     amenityLocations = [(key, value) for (key, value) in sortedAmenities.items()]
     amenityLocations.sort(key = lambda x: x[0])
@@ -108,6 +108,7 @@ def mineCliques(amenityLocations):
             colocationStarInstancesCandidates = neighborsByAmenity[colocation[0]]
             starInstances['.'.join(colocation)] = [instance for instance in colocationStarInstancesCandidates
                                                    if hlp.checkStar(instance, colocation)]
+    
         cliques = {}
         patternsInstances[k] = {}
         for colocation, instances in starInstances.items():
@@ -134,11 +135,11 @@ def mineCliques(amenityLocations):
         k += 1
     print("cliqueToStart took",time() - start)
 
-cities, amenitiesIndices, amenitiesList = hlp.loadCities("../amenities_list.json", "../cities/", "small.csv")
+cities, amenitiesIndices, amenitiesList = hlp.load_city()
 start = time()
 
-data = cities['small']
-minLat, minLng, maxLat, maxLng = data.location_lat.min(), data.location_lng.min(), data.location_lat.max(), data.location_lng.max()
+data = cities['Copenhagen']
+minLat, minLng, maxLat, maxLng = data.latitude.min(), data.longitude.min(), data.latitude.max(), data.longitude.max()
 lowerLeft = minLat, minLng
 upperRight = maxLat, maxLng
 
@@ -147,7 +148,7 @@ latCells, lngCells, _ = cityCoords.shape
 latStep = (maxLat - minLat)/latCells
 lngStep = (maxLng - minLng)/lngCells
 
-amenities, amenityLocations = sortAmedities()
+amenities, amenityLocations = sortAmenities()
 #naiveMaterialization(lngEps, amenities, amenityLocations)
 
 materTime, neighborsByAmenity = minePatterns(hashTable, latCells, lngCells, latStep, lngStep, lngEps)

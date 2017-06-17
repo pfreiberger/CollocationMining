@@ -14,7 +14,7 @@ def hashData(hashTable, data, latCells, lngCells, latStep, lngStep, latEps, lngE
     global relPoint
     start = time()
     for index, location in data.iterrows():
-        lat, lng = location.location_lat, location.location_lng
+        lat, lng = location.latitude, location.longitude
         currentLatId, currentLngId = int((lat-minLat)/latStep), int((lng-minLng)/lngStep)
 
         upperLatId, bottomLatId = int((lat+latEps-minLat)/latStep), int((lat-latEps-minLat)/latStep)
@@ -28,11 +28,11 @@ def hashData(hashTable, data, latCells, lngCells, latStep, lngStep, latEps, lngE
             for lngId in set([currentLngId, otherLngId]):
                 try:
                     x, y = hlp.getXYpos(relPoint, gp.Point(lat, lng))
-                    if hashTable[latId, lngId, amenitiesIndices[location.type_lowest]]:
-                        hashTable[latId, lngId, amenitiesIndices[location.type_lowest]].append((lat, lng, x, y))
-                        hashTable[latId, lngId, amenitiesIndices[location.type_lowest]].sort(key = lambda x : x[0])
+                    if hashTable[latId, lngId, amenitiesIndices[location.type]]:
+                        hashTable[latId, lngId, amenitiesIndices[location.type]].append((lat, lng, x, y))
+                        hashTable[latId, lngId, amenitiesIndices[location.type]].sort(key = lambda x : x[0])
                     else:
-                        hashTable[latId, lngId, amenitiesIndices[location.type_lowest]] = [(lat, lng, x, y)]
+                        hashTable[latId, lngId, amenitiesIndices[location.type]] = [(lat, lng, x, y)]
                 except Exception as e:
                     print(e) #pass
 
@@ -139,11 +139,11 @@ def mineCliquePatterns(hashTable, latCells, lngCells, latStep, lngStep, lngEps):
     return time()-start, patterns
 
 # Algorithm 1 : Start Patterns
-cities, amenitiesIndices, amenitiesList = hlp.loadCities("../amenities_list.json", "../cities/", "ProvidenceNew.csv")
+cities, amenitiesIndices, amenitiesList = hlp.load_city()
 start = time()
-data = cities['ProvidenceNew']
+data = cities['Copenhagen']
 
-minLat, minLng, maxLat, maxLng = data.location_lat.min(), data.location_lng.min(), data.location_lat.max(), data.location_lng.max()
+minLat, minLng, maxLat, maxLng = data.latitude.min(), data.longitude.min(), data.latitude.max(), data.longitude.max()
 lowerLeft = minLat, minLng
 upperRight = maxLat, maxLng
 relPoint = gp.Point(minLat, minLng)
@@ -161,10 +161,10 @@ miningTime, patterns = mineCliquePatterns(hashTable, latCells, lngCells, latStep
 #print(len(patterns))
 
 sortedAmenities = {}
-for amenityType, locations in data.groupby('type_lowest'):
-    sortedAmenities[amenityType] = list(zip(locations.location_lat.tolist(),
-                                            locations.location_lng.tolist(),
-                                           locations.type_lowest.tolist()))
+for amenityType, locations in data.groupby('type'):
+    sortedAmenities[amenityType] = list(zip(locations.latitude.tolist(),
+                                            locations.longitude.tolist(),
+                                           locations.type.tolist()))
     sortedAmenities[amenityType].sort(key = lambda x : x[0])
 amenityLocations = [(key, value) for (key, value) in sortedAmenities.items()]
 amenityLocations.sort(key = lambda x: x[0])

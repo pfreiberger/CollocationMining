@@ -9,45 +9,29 @@ import math
 from geopy.distance import VincentyDistance as vincenty
 import itertools
 
-def loadCities(amenities_path, citites_path, city = ''):
-    groups = {'hindu_temple':'religious_centers',
-        'mosque':'religious_centers',
-        'place_of_worship' : 'religious_centers',
-        'synagogue' : 'religious_centers',
-        'church' : 'religious_centers',
-        'meal_delivery' : 'restaurant',
-        'food' : 'restaurant',
-        'meal_takeaway' : 'restaurant',
-        'roofing_contractor' : 'construction_contractor',
-        'electrician' : 'construction_contractor',
-        'plumber' : 'construction_contractor',
-        'painter' : 'construction_contractor',
-        'general_contractor' : 'construction_contractor',
-        'health' : 'doctor',
-        'lodging' : 'hotel_and_lodging'
-    }
-
-    with open(amenities_path) as outfile:
-        amenitiesOldInfo = json.load(outfile)
-    amenitiesList = [amenity['Label'] for amenity in amenitiesOldInfo]
+def load_city():
+    data = pd.read_csv("./osm_data/amenities.csv", sep=",", header=0, index_col=0)
+    data.columns=["longitude", "latitude", "type", "wheelchair"]
+    with open("groups.json", "r") as file:
+        groups = json.load(file)
+    #data = pd.read_csv('Boston/revised/data/processing_data/result/' + file)
+    #data.columns = ['latitude','longitude','intensity','type','clusterId']
+ 
+    for old, new in groups.items():
+        data.loc[data.type == old,'type'] = new
+   
+    data.drop('wheelchair', axis = 1, inplace = True)
+    data['id'] = data.index
+    data = data.drop_duplicates(['latitude','longitude','type'])
+    
+    sizes = data.groupby("type").size()         
+    
+    amenitiesList = [amenity for amenity, value in sizes.iteritems() if value >= 5]
     amenitiesIndices = {v: k for k, v in zip(range(len(amenitiesList)), amenitiesList)}
+    filteredData = data[data.type.isin(amenitiesList)]
 
-    cities = {}
-    for file in os.listdir(citites_path):
-        if city == '' or city == file:
-            try:
-                data = pd.read_csv(citites_path + file)
-                for old, new in groups.items():
-                    data.loc[data.type_lowest == old,'type_lowest'] = new
-                filteredData = data[data.type_lowest.isin(amenitiesList)]
-                cities[file.split('.')[0]] = filteredData
-            except Exception as e:
-                print(e)
 
-    print(sum([len(item) for item in cities.values()]))
-
-    return cities, amenitiesIndices, amenitiesList
-
+    return {'Copenhagen': filteredData} , amenitiesIndices, amenitiesList
 
 def initializeContainers(minLat, minLng, maxLat, maxLng, amenitiesList):
     cityCoords = []
