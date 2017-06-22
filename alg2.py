@@ -1,13 +1,5 @@
-import numpy as np
-import pandas as pd
-import json
 from time import time
-from collections import defaultdict
-import sys, traceback
-import os
-import math
 from geopy.distance import VincentyDistance as vincenty
-import itertools
 
 import helpers as hlp
 
@@ -40,12 +32,14 @@ def naiveMaterialization(lngEps, amenities, amenityLocations):
                         continue
                     if location[0] - neighborLocation[0] > lngEps:
                         break
+                    # thereshold: add if within 50 meters
                     if vincenty(location[:2], neighborLocation[:2]).meters <= 50:
                         locationNeighbors.append(neighborLocation)
             amenityNeighbors.append((location, locationNeighbors))
         neighborsByAmenity[amenityType] = amenityNeighbors
         print(time()-start, 'to execute')
     print('Naive Materialzation took', time()-start, 'to execute')
+    return neighborsByAmenity
 
 # Cool Materialization
 def minePatterns(hashTable, latCells, lngCells, latStep, lngStep, lngEps):
@@ -54,6 +48,7 @@ def minePatterns(hashTable, latCells, lngCells, latStep, lngStep, lngEps):
     for lat in range(latCells):
         for lng in range(lngCells):
             currentCell = hashTable[lat, lng]
+            print("lat and long")
             for amenityType in amenitiesList:
                 amenityNeighbors = []
                 if amenityType not in neighborsByAmenity:
@@ -61,10 +56,10 @@ def minePatterns(hashTable, latCells, lngCells, latStep, lngStep, lngEps):
                 #No locations of this type
                 if not currentCell[amenitiesIndices[amenityType]]:
                     continue
-
+                
                 cellCoords = cityCoords[lat, lng]
                 #Iterate all the objects in this cell and type
-
+                print("hdhdejfe")
                 for location in filter(lambda x:
                                            x[0] >= cellCoords[0]
                                        and x[0] < cellCoords[0] + latStep
@@ -108,8 +103,7 @@ def mineCliques(amenityLocations):
             colocationStarInstancesCandidates = neighborsByAmenity[colocation[0]]
             starInstances['.'.join(colocation)] = [instance for instance in colocationStarInstancesCandidates
                                                    if hlp.checkStar(instance, colocation)]
-    
-        cliques = {}
+
         patternsInstances[k] = {}
         for colocation, instances in starInstances.items():
             if len(instances):
@@ -135,23 +129,26 @@ def mineCliques(amenityLocations):
         k += 1
     print("cliqueToStart took",time() - start)
 
-cities, amenitiesIndices, amenitiesList = hlp.load_city()
-start = time()
-
-data = cities['Copenhagen']
-minLat, minLng, maxLat, maxLng = data.latitude.min(), data.longitude.min(), data.latitude.max(), data.longitude.max()
-lowerLeft = minLat, minLng
-upperRight = maxLat, maxLng
-
-cityCoords, hashTable, lngEps, latEps = hlp.initializeContainers(minLat, minLng, maxLat, maxLng, amenitiesList)
-latCells, lngCells, _ = cityCoords.shape
-latStep = (maxLat - minLat)/latCells
-lngStep = (maxLng - minLng)/lngCells
-
-amenities, amenityLocations = sortAmenities()
-#naiveMaterialization(lngEps, amenities, amenityLocations)
-
-materTime, neighborsByAmenity = minePatterns(hashTable, latCells, lngCells, latStep, lngStep, lngEps)
-mineCliques(amenityLocations)
-
-print('Total algorithm time took', time()-start, 'to execute')
+if __name__ == "__main__":
+    cities, amenitiesIndices, amenitiesList = hlp.load_city()
+    start = time()
+    
+    data = cities['Copenhagen']
+    minLat, minLng, maxLat, maxLng = data.latitude.min(), data.longitude.min(), data.latitude.max(), data.longitude.max()
+    lowerLeft = minLat, minLng
+    upperRight = maxLat, maxLng
+    
+    #hashtables is returned as all zeoros
+    cityCoords, hashTable, lngEps, latEps = hlp.initializeContainers(minLat, minLng, maxLat, maxLng, amenitiesList)
+    latCells, lngCells, _ = cityCoords.shape
+    latStep = (maxLat - minLat)/latCells
+    lngStep = (maxLng - minLng)/lngCells
+    
+    amenities, amenityLocations = sortAmenities()
+    neighborsByAmenity = naiveMaterialization(lngEps, amenities, amenityLocations)
+    
+    #materTime, neighborsByAmenity = minePatterns(hashTable, latCells, lngCells, latStep, lngStep, lngEps)
+    #function doesn't return anything
+    mineCliques(amenityLocations)
+    
+    print('Total algorithm time took', time()-start, 'to execute')

@@ -5,9 +5,13 @@ from time import time
 from collections import defaultdict
 import sys, traceback
 import os
+from geopy.geocoders import Nominatim
 import math
 from geopy.distance import VincentyDistance as vincenty
+from geopy.location import Location
 import itertools
+
+
 
 def load_city():
     data = pd.read_csv("./osm_data/amenities.csv", sep=",", header=0, index_col=0)
@@ -23,14 +27,17 @@ def load_city():
     data.drop('wheelchair', axis = 1, inplace = True)
     data['id'] = data.index
     data = data.drop_duplicates(['latitude','longitude','type'])
+
+    data["location"]=data.apply(lambda x: (x['latitude'], x['longitude']), axis=1)
+    
     
     sizes = data.groupby("type").size()         
     
-    amenitiesList = [amenity for amenity, value in sizes.iteritems() if value >= 5]
+    amenitiesList = [amenity for amenity, value in sizes.iteritems() if value >= 15]
     amenitiesIndices = {v: k for k, v in zip(range(len(amenitiesList)), amenitiesList)}
     filteredData = data[data.type.isin(amenitiesList)]
 
-
+    filteredData = filteredData.reset_index(drop=True)
     return {'Copenhagen': filteredData} , amenitiesIndices, amenitiesList
 
 def initializeContainers(minLat, minLng, maxLat, maxLng, amenitiesList):
@@ -38,12 +45,12 @@ def initializeContainers(minLat, minLng, maxLat, maxLng, amenitiesList):
     length = vincenty((minLat, minLng), (maxLat, minLng)).kilometers
     width = vincenty((minLat, minLng), (minLat, maxLng)).kilometers
     cellSize = 2.0
+    latCells = int(math.ceil(length/cellSize) + 1)
+    lngCells = int(math.ceil(width/cellSize) + 1)
+
 
     lngEps = (maxLat - minLat)/length*0.05
     latEps = (maxLng - minLng)/width*0.05
-
-    latCells = int(math.ceil(length/cellSize) + 1)
-    lngCells = int(math.ceil(width/cellSize) + 1)
 
     latStep = (maxLat - minLat)/latCells
     lngStep = (maxLng - minLng)/lngCells
@@ -52,7 +59,9 @@ def initializeContainers(minLat, minLng, maxLat, maxLng, amenitiesList):
         for lng in range(lngCells):
             cityCoords.append(((minLat + lat*latStep), (minLng + lng*lngStep)))
     cityCoords = np.array(cityCoords).reshape([latCells,lngCells, 2])
+    #hashtable is all zeros
     hashTable = np.zeros([latCells, lngCells, len(amenitiesList)], dtype=object)
+    
     return cityCoords, hashTable, lngEps, latEps
 
 def checkStar(instance, colocation):
